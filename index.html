@@ -4,7 +4,6 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
   <title>한울회 코트 관리</title>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif; background: #f5f7f5; max-width: 480px; margin: 0 auto; min-height: 100vh; }
@@ -107,9 +106,13 @@
 </div>
 
 <script>
-const SB_URL = "https://yuvwtyljcipcgotzonkc.supabase.co";
+const SB_URL = "https://yuvwtyljcipcgotzonkc.supabase.co/rest/v1";
 const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl1dnd0eWxqY2lwY2dvdHpvbmtjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzczOTk3NjUsImV4cCI6MjA5Mjk3NTc2NX0.DQkCV-LouCF7nb52n1dTlqD_PWRMPVRSm30opdcntZk";
-const client = supabase.createClient(SB_URL, SB_KEY);
+const SB_HEADERS = { "apikey": SB_KEY, "Authorization": "Bearer " + SB_KEY, "Content-Type": "application/json", "Prefer": "return=representation" };
+async function sbGet(table,query=""){const r=await fetch(`${SB_URL}/${table}?${query}`,{headers:SB_HEADERS});const d=await r.json();if(!r.ok)throw new Error(d.message||r.statusText);return d;}
+async function sbPost(table,body){const r=await fetch(`${SB_URL}/${table}`,{method:"POST",headers:SB_HEADERS,body:JSON.stringify(body)});if(!r.ok){const d=await r.json();throw new Error(d.message||r.statusText);}}
+async function sbPatch(table,query,body){const r=await fetch(`${SB_URL}/${table}?${query}`,{method:"PATCH",headers:SB_HEADERS,body:JSON.stringify(body)});if(!r.ok){const d=await r.json();throw new Error(d.message||r.statusText);}}
+async function sbDelete(table,query){const r=await fetch(`${SB_URL}/${table}?${query}`,{method:"DELETE",headers:SB_HEADERS});if(!r.ok){const d=await r.json();throw new Error(d.message||r.statusText);}}
 
 const MEMBERS = ["장윤혁","박상배","김지민","송현창","정은주","이상용","임시헌"];
 const DAYS = ["일","월","화","수","목","금","토"];
@@ -159,12 +162,12 @@ async function dbDelete(table, col, val) {
 }
 
 async function loadData() {
-  const [{ data: res }, { data: rain }] = await Promise.all([
-    client.from("reservations").select("*").order("date").order("time"),
-    client.from("rain_days").select("*"),
+  const [res, rain] = await Promise.all([
+    sbGet("reservations","order=date.asc,time.asc"),
+    sbGet("rain_days"),
   ]);
-  state.reservations = res || [];
-  state.rainDays = (rain || []).map(r => r.date);
+  state.reservations = Array.isArray(res) ? res : [];
+  state.rainDays = Array.isArray(rain) ? rain.map(r => r.date) : [];
 }
 
 // Render
