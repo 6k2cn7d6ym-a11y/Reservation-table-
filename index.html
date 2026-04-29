@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <title>한울회 코트 관리</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif; background: #f5f7f5; max-width: 480px; margin: 0 auto; min-height: 100vh; }
+    button { font-family: inherit; }
+
+    /* Header */
+    .header { background: #fff; border-bottom: 1px solid #e5e7eb; padding: 13px 16px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 10; }
+    .header-center { text-align: center; }
+    .header-sub { font-size: 11px; color: #9ca3af; margin-bottom: 1px; }
+    .header-title { font-size: 15px; font-weight: 700; color: #111827; }
+    .arrow-btn { background: none; border: 1px solid #e5e7eb; border-radius: 8px; width: 32px; height: 32px; font-size: 18px; cursor: pointer; color: #374151; }
+
+    /* Grid */
+    .grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; background: #e5e7eb; }
+    .day-col { background: #fff; min-height: 150px; position: relative; transition: filter 0.2s; }
+    .day-col.rain { background: #f3f4f6; filter: grayscale(1); }
+    .day-header { text-align: center; padding: 7px 2px 5px; background: #f9fafb; border-bottom: 1px solid #e5e7eb; cursor: pointer; user-select: none; -webkit-user-select: none; }
+    .day-header.today { background: #166534; }
+    .day-header.rain-day { background: #9ca3af; }
+    .day-name { font-size: 11px; font-weight: 600; color: #6b7280; }
+    .day-header.today .day-name { color: #86efac; }
+    .day-header.rain-day .day-name { color: #fff; }
+    .day-num { font-size: 15px; font-weight: 700; color: #111827; margin-top: 1px; }
+    .day-header.today .day-num { color: #fff; }
+    .day-header.rain-day .day-num { color: #fff; }
+    .day-name.sun { color: #ef4444; }
+    .day-name.sat { color: #3b82f6; }
+    .day-entries { padding: 3px 2px; }
+
+    /* Entry */
+    .entry { margin-bottom: 2px; position: relative; }
+    .entry-card { border-radius: 6px; padding: 3px 4px; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 2px; }
+    .entry-card.normal { background: #fffbeb; border: 1px solid #fde68a; }
+    .entry-card.paid { background: #f0fdf4; border: 1px solid #bbf7d0; }
+    .entry-card.cancelled { background: #fff1f2; border: 1px solid #fecdd3; opacity: 0.55; }
+    .entry-card.rain-entry { background: #e5e7eb; border: 1px solid #d1d5db; }
+    .entry-info { min-width: 0; flex: 1; }
+    .entry-court { font-size: 10px; font-weight: 700; color: #166534; white-space: nowrap; }
+    .entry-court .time-label { color: #9ca3af; font-weight: 400; }
+    .entry-court.cancelled-text { color: #9ca3af; text-decoration: line-through; }
+    .entry-court.rain-text { color: #9ca3af; }
+    .entry-person { font-size: 10px; color: #374151; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .entry-person.cancelled-text { color: #9ca3af; text-decoration: line-through; }
+    .entry-person.rain-text { color: #9ca3af; }
+    .pay-dot { width: 13px; height: 13px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; border: 2px solid #d1d5db; background: #e5e7eb; cursor: pointer; }
+    .pay-dot.paid-normal { background: #166534; border-color: #166634; }
+    .pay-dot.paid-cancelled { background: #f97316; border-color: #f97316; }
+    .pay-dot span { color: #fff; font-size: 7px; font-weight: 900; line-height: 1; }
+    .entry-menu { display: none; position: absolute; top: 100%; left: 0; right: 0; z-index: 20; background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); overflow: hidden; min-width: 80px; }
+    .entry-menu.open { display: block; }
+    .menu-btn { display: block; width: 100%; padding: 9px 12px; border: none; border-bottom: 1px solid #f3f4f6; font-size: 12px; font-weight: 600; text-align: left; cursor: pointer; font-family: inherit; }
+
+    /* Add button */
+    .add-btn { width: 100%; margin-top: 2px; padding: 4px 0; border-radius: 5px; background: none; border: 1px dashed #d1d5db; color: #b0b8c1; font-size: 14px; cursor: pointer; line-height: 1; }
+
+    /* Rain popup */
+    .rain-popup { position: absolute; top: 52px; left: 50%; transform: translateX(-50%); z-index: 30; background: #fff; border-radius: 10px; border: 1px solid #e5e7eb; box-shadow: 0 4px 16px rgba(0,0,0,0.15); padding: 10px 10px 8px; min-width: 90px; text-align: center; }
+    .rain-popup-title { font-size: 11px; color: #374151; margin-bottom: 8px; font-weight: 600; }
+    .rain-popup-btns { display: flex; gap: 4px; }
+    .rain-confirm-btn { flex: 1; padding: 5px 0; border-radius: 7px; border: none; background: #6b7280; color: #fff; font-size: 11px; font-weight: 700; cursor: pointer; font-family: inherit; }
+    .rain-confirm-btn.restore { background: #166534; }
+    .rain-cancel-btn { flex: 1; padding: 5px 0; border-radius: 7px; border: 1px solid #e5e7eb; background: #f9fafb; color: #6b7280; font-size: 11px; cursor: pointer; font-family: inherit; }
+
+    /* Add form */
+    .add-form { background: #fff; margin: 12px 12px 0; border-radius: 14px; padding: 16px; border: 1px solid #d1fae5; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
+    .form-title { font-size: 14px; font-weight: 700; color: #166534; margin-bottom: 14px; }
+    .form-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+    .form-label { font-size: 12px; color: #6b7280; width: 28px; flex-shrink: 0; }
+    .chip-group { display: flex; gap: 6px; flex-wrap: wrap; }
+    .chip { padding: 6px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; cursor: pointer; border: none; background: #f3f4f6; color: #374151; font-family: inherit; }
+    .chip.active { background: #166534; color: #fff; }
+    .chip.sm { padding: 5px 10px; }
+    .form-input { padding: 8px 10px; border-radius: 8px; border: 1px solid #e5e7eb; font-size: 14px; outline: none; font-family: inherit; }
+    .form-input.w64 { width: 64px; }
+    .form-input.w100 { width: 100px; }
+    .form-input.full { width: 100%; }
+    .form-note { font-size: 12px; color: #9ca3af; }
+    .member-group { margin-bottom: 14px; }
+    .member-label { font-size: 12px; color: #6b7280; margin-bottom: 7px; }
+    .form-actions { display: flex; gap: 8px; }
+    .btn-submit { flex: 1; padding: 11px 0; background: #166634; color: #fff; border: none; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit; }
+    .btn-cancel { padding: 11px 16px; background: #f3f4f6; color: #374151; border: none; border-radius: 10px; font-size: 14px; cursor: pointer; font-family: inherit; }
+
+    /* Loading/Error */
+    .center-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; gap: 12px; }
+    .spinner { width: 32px; height: 32px; border: 3px solid #e5e7eb; border-top: 3px solid #166534; border-radius: 50%; animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-text { color: #9ca3af; font-size: 13px; }
+    .error-text { color: #ef4444; text-align: center; font-size: 14px; }
+    .retry-btn { margin-top: 12px; padding: 8px 16px; border-radius: 8px; border: 1px solid #e5e7eb; background: #fff; cursor: pointer; font-family: inherit; }
+  </style>
+</head>
+<body>
+
+<div id="app">
+  <div class="center-screen">
+    <div class="spinner"></div>
+    <div class="loading-text">데이터 불러오는 중...</div>
+  </div>
+</div>
+
+<script>
+const SB_URL = "https://yuvwtyljcipcgotzonkc.supabase.co";
+const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl1dnd0eWxqY2lwY2dvdHpvbmtjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzczOTk3NjUsImV4cCI6MjA5Mjk3NTc2NX0.DQkCV-LouCF7nb52n1dTlqD_PWRMPVRSm30opdcntZk";
+const client = supabase.createClient(SB_URL, SB_KEY);
+
+const MEMBERS = ["장윤혁","박상배","김지민","송현창","정은주","이상용","임시헌"];
+const DAYS = ["일","월","화","수","목","금","토"];
+const TIME_OPTIONS = [{v:"6-7",l:"6-7시"},{v:"7-8",l:"7-8시"},{v:"직접입력",l:"직접입력"}];
+
+let state = {
+  reservations: [],
+  rainDays: [],
+  weekStart: toKST(),
+  addTarget: null,
+  rainConfirm: null,
+  form: { time:"7-8", customTime:"", court:"", person:MEMBERS[0], customPerson:"" },
+  openMenu: null,
+};
+
+function toKST() {
+  return new Date(Date.now() + 9*60*60*1000).toISOString().split("T")[0];
+}
+function addDays(dateStr, n) {
+  const d = new Date(dateStr + "T00:00:00");
+  d.setDate(d.getDate() + n);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+}
+function getWeekLabel(start) {
+  const s = new Date(start + "T00:00:00"), e = new Date(start + "T00:00:00");
+  e.setDate(e.getDate() + 6);
+  return `${s.getMonth()+1}/${s.getDate()} - ${e.getMonth()+1}/${e.getDate()}`;
+}
+
+// Supabase helpers
+async function dbGet(table, query="") {
+  const { data, error } = await client.from(table).select("*");
+  if (error) throw error;
+  return data;
+}
+async function dbInsert(table, row) {
+  const { error } = await client.from(table).insert(row);
+  if (error) throw error;
+}
+async function dbUpdate(table, id, fields) {
+  const { error } = await client.from(table).update(fields).eq("id", id);
+  if (error) throw error;
+}
+async function dbDelete(table, col, val) {
+  const { error } = await client.from(table).delete().eq(col, val);
+  if (error) throw error;
+}
+
+async function loadData() {
+  const [{ data: res }, { data: rain }] = await Promise.all([
+    client.from("reservations").select("*").order("date").order("time"),
+    client.from("rain_days").select("*"),
+  ]);
+  state.reservations = res || [];
+  state.rainDays = (rain || []).map(r => r.date);
+}
+
+// Render
+function render() {
+  document.getElementById("app").innerHTML = buildHTML();
+  attachEvents();
+}
+
+function buildHTML() {
+  const today = toKST();
+  const weekDays = Array.from({length:7}, (_,i) => addDays(state.weekStart, i));
+
+  const gridHTML = weekDays.map(dateStr => {
+    const d = new Date(dateStr + "T00:00:00");
+    const dow = d.getDay();
+    const isToday = dateStr === today;
+    const rain = state.rainDays.includes(dateStr);
+    const res = state.reservations.filter(r => r.date === dateStr);
+    const active = res.filter(r => !r.cancelled);
+    const cancelled = res.filter(r => r.cancelled);
+
+    const dayNameClass = dow===0?"sun":dow===6?"sat":"";
+    const headerClass = rain?"rain-day":isToday?"today":"";
+
+    const entriesHTML = [
+      ...active.map(r => entryHTML(r, rain)),
+      ...cancelled.map(r => entryHTML(r, rain)),
+      rain ? "" : `<button class="add-btn" data-add="${dateStr}">+</button>`
+    ].join("");
+
+    const rainPopup = state.rainConfirm === dateStr ? `
+      <div class="rain-popup" id="rain-popup-${dateStr}">
+        <div class="rain-popup-title">${rain?"☀️ 우천해제?":"☔ 우천취소?"}</div>
+        <div class="rain-popup-btns">
+          <button class="${rain?"rain-confirm-btn restore":"rain-confirm-btn"}" data-rain-confirm="${dateStr}">확인</button>
+          <button class="rain-cancel-btn" data-rain-cancel>취소</button>
+        </div>
+      </div>` : "";
+
+    return `
+      <div class="day-col${rain?" rain":""}" >
+        <div class="day-header ${headerClass}" data-press="${dateStr}">
+          <div class="day-name ${dayNameClass}">${rain?"☔":DAYS[dow]}</div>
+          <div class="day-num">${d.getDate()}</div>
+        </div>
+        ${rainPopup}
+        <div class="day-entries">${entriesHTML}</div>
+      </div>`;
+  }).join("");
+
+  const addFormHTML = state.addTarget ? buildAddForm() : "";
+
+  return `
+    <div class="header">
+      <button class="arrow-btn" id="prev-week">‹</button>
+      <div class="header-center">
+        <div class="header-sub">한울회</div>
+        <div class="header-title">${getWeekLabel(state.weekStart)}</div>
+      </div>
+      <button class="arrow-btn" id="next-week">›</button>
+    </div>
+    <div class="grid">${gridHTML}</div>
+    ${addFormHTML}
+    <div style="height:40px"></div>
+  `;
+}
+
+function entryHTML(r, rain) {
+  const timeLabel = (r.time||"7-8") + "시";
+  let cardClass = "entry-card ";
+  if (rain) cardClass += "rain-entry";
+  else if (r.cancelled) cardClass += "cancelled";
+  else if (r.paid) cardClass += "paid";
+  else cardClass += "normal";
+
+  const textClass = rain?"rain-text":r.cancelled?"cancelled-text":"";
+  let dotClass = "pay-dot";
+  if (!rain && r.paid) dotClass += r.cancelled ? " paid-cancelled" : " paid-normal";
+
+  const menuHTML = state.openMenu === r.id ? `
+    <div class="entry-menu open">
+      <button class="menu-btn" style="background:${r.cancelled?"#dcfce7":"#fff7ed"};color:${r.cancelled?"#166534":"#c2410c"}" data-cancel="${r.id}">${r.cancelled?"복구":"위약금취소"}</button>
+      <button class="menu-btn" style="background:#fee2e2;color:#991b1b" data-delete="${r.id}">삭제</button>
+    </div>` : "";
+
+  return `
+    <div class="entry">
+      <div class="${cardClass}" data-toggle-menu="${r.id}">
+        <div class="entry-info">
+          <div class="entry-court ${textClass}"><span class="time-label">${timeLabel} </span>${r.court}번</div>
+          <div class="entry-person ${textClass}">${r.person}</div>
+        </div>
+        <div class="${dotClass}" data-pay="${r.id}" data-paid="${r.paid}" data-rain="${rain}">
+          ${r.paid && !rain ? '<span>✓</span>' : ""}
+        </div>
+      </div>
+      ${menuHTML}
+    </div>`;
+}
+
+function buildAddForm() {
+  const d = new Date(state.addTarget + "T00:00:00");
+  const f = state.form;
+
+  const timeChips = TIME_OPTIONS.map(t =>
+    `<button class="chip${f.time===t.v?" active":""}" data-time="${t.v}">${t.l}</button>`
+  ).join("");
+
+  const customTimeHTML = f.time==="직접입력" ? `
+    <div class="form-row" style="padding-left:38px">
+      <input class="form-input w100" id="customTime" placeholder="예: 8-9시" value="${f.customTime}">
+    </div>` : "";
+
+  const memberChips = [...MEMBERS,"직접입력"].map(m =>
+    `<button class="chip sm${f.person===m?" active":""}" data-person="${m}">${m}</button>`
+  ).join("");
+
+  const customPersonHTML = f.person==="직접입력" ? `
+    <input class="form-input full" id="customPerson" placeholder="이름 입력" value="${f.customPerson}" style="margin-bottom:12px">` : "";
+
+  return `
+    <div class="add-form">
+      <div class="form-title">${d.getMonth()+1}/${d.getDate()}(${DAYS[d.getDay()]}) 추가</div>
+      <div class="form-row">
+        <span class="form-label">시간</span>
+        <div class="chip-group">${timeChips}</div>
+      </div>
+      ${customTimeHTML}
+      <div class="form-row">
+        <span class="form-label">코트</span>
+        <input class="form-input w64" id="court" placeholder="번호" value="${f.court}">
+        <span class="form-note">번코트</span>
+      </div>
+      <div class="member-group">
+        <div class="member-label">예약자</div>
+        <div class="chip-group">${memberChips}</div>
+      </div>
+      ${customPersonHTML}
+      <div class="form-actions">
+        <button class="btn-submit" id="submit-add">추가</button>
+        <button class="btn-cancel" id="close-add">닫기</button>
+      </div>
+    </div>`;
+}
+
+let pressTimers = {};
+
+function attachEvents() {
+  // Week nav
+  document.getElementById("prev-week")?.addEventListener("click", () => {
+    state.weekStart = addDays(state.weekStart, -7);
+    state.addTarget = null; render();
+  });
+  document.getElementById("next-week")?.addEventListener("click", () => {
+    state.weekStart = addDays(state.weekStart, 7);
+    state.addTarget = null; render();
+  });
+
+  // Day header long press (rain)
+  document.querySelectorAll("[data-press]").forEach(el => {
+    const dateStr = el.dataset.press;
+    const start = () => { pressTimers[dateStr] = setTimeout(() => { state.rainConfirm = dateStr; render(); }, 500); };
+    const end   = () => clearTimeout(pressTimers[dateStr]);
+    el.addEventListener("mousedown", start);
+    el.addEventListener("mouseup", end);
+    el.addEventListener("mouseleave", end);
+    el.addEventListener("touchstart", start, {passive:true});
+    el.addEventListener("touchend", end);
+  });
+
+  // Rain confirm
+  document.querySelectorAll("[data-rain-confirm]").forEach(el => {
+    el.addEventListener("click", async e => {
+      e.stopPropagation();
+      const dateStr = el.dataset.rainConfirm;
+      const isRain = state.rainDays.includes(dateStr);
+      if (isRain) {
+        state.rainDays = state.rainDays.filter(d => d !== dateStr);
+        await dbDelete("rain_days", "date", dateStr);
+      } else {
+        state.rainDays.push(dateStr);
+        await dbInsert("rain_days", { date: dateStr });
+      }
+      state.rainConfirm = null; render();
+    });
+  });
+  document.querySelectorAll("[data-rain-cancel]").forEach(el => {
+    el.addEventListener("click", e => { e.stopPropagation(); state.rainConfirm = null; render(); });
+  });
+  document.addEventListener("click", e => {
+    if (state.rainConfirm && !e.target.closest(".rain-popup") && !e.target.closest("[data-press]")) {
+      state.rainConfirm = null; render();
+    }
+    if (state.openMenu && !e.target.closest(".entry-menu") && !e.target.closest("[data-toggle-menu]")) {
+      state.openMenu = null; render();
+    }
+  }, { capture: true });
+
+  // Add button
+  document.querySelectorAll("[data-add]").forEach(el => {
+    el.addEventListener("click", () => {
+      state.addTarget = state.addTarget === el.dataset.add ? null : el.dataset.add;
+      state.form = { time:"7-8", customTime:"", court:"", person:MEMBERS[0], customPerson:"" };
+      render();
+    });
+  });
+
+  // Pay dot
+  document.querySelectorAll("[data-pay]").forEach(el => {
+    el.addEventListener("click", async e => {
+      e.stopPropagation();
+      if (el.dataset.rain === "true") return;
+      const id = el.dataset.pay;
+      const paid = el.dataset.paid === "true";
+      state.reservations = state.reservations.map(r => r.id===id ? {...r, paid:!paid} : r);
+      render();
+      await dbUpdate("reservations", id, { paid: !paid });
+    });
+  });
+
+  // Toggle menu
+  document.querySelectorAll("[data-toggle-menu]").forEach(el => {
+    el.addEventListener("click", e => {
+      const id = el.dataset.toggleMenu;
+      state.openMenu = state.openMenu === id ? null : id;
+      render();
+    });
+  });
+
+  // Cancel (위약금취소)
+  document.querySelectorAll("[data-cancel]").forEach(el => {
+    el.addEventListener("click", async e => {
+      e.stopPropagation();
+      const id = el.dataset.cancel;
+      const r = state.reservations.find(r => r.id === id);
+      if (!r) return;
+      state.reservations = state.reservations.map(r => r.id===id ? {...r, cancelled:!r.cancelled} : r);
+      state.openMenu = null; render();
+      await dbUpdate("reservations", id, { cancelled: !r.cancelled });
+    });
+  });
+
+  // Delete
+  document.querySelectorAll("[data-delete]").forEach(el => {
+    el.addEventListener("click", async e => {
+      e.stopPropagation();
+      const id = el.dataset.delete;
+      state.reservations = state.reservations.filter(r => r.id !== id);
+      state.openMenu = null; render();
+      await dbDelete("reservations", "id", id);
+    });
+  });
+
+  // Add form inputs (keep form state on re-render)
+  document.querySelectorAll("[data-time]").forEach(el => {
+    el.addEventListener("click", () => { state.form.time = el.dataset.time; state.form.customTime = ""; render(); });
+  });
+  document.querySelectorAll("[data-person]").forEach(el => {
+    el.addEventListener("click", () => { state.form.person = el.dataset.person; render(); });
+  });
+  document.getElementById("court")?.addEventListener("input", e => { state.form.court = e.target.value; });
+  document.getElementById("customTime")?.addEventListener("input", e => { state.form.customTime = e.target.value; });
+  document.getElementById("customPerson")?.addEventListener("input", e => { state.form.customPerson = e.target.value; });
+
+  document.getElementById("close-add")?.addEventListener("click", () => { state.addTarget = null; render(); });
+
+  document.getElementById("submit-add")?.addEventListener("click", async () => {
+    const f = state.form;
+    // sync inputs
+    const courtEl = document.getElementById("court");
+    const ctEl = document.getElementById("customTime");
+    const cpEl = document.getElementById("customPerson");
+    if (courtEl) f.court = courtEl.value;
+    if (ctEl) f.customTime = ctEl.value;
+    if (cpEl) f.customPerson = cpEl.value;
+
+    const person = f.person==="직접입력" ? f.customPerson.trim() : f.person;
+    const time   = f.time==="직접입력"   ? f.customTime.trim()   : f.time;
+    if (!f.court.trim() || !person || !time) return;
+
+    const item = { id: Date.now().toString(), date: state.addTarget, time, court: f.court.trim(), person, paid: false, cancelled: false };
+    state.reservations.push(item);
+    state.addTarget = null;
+    state.form = { time:"7-8", customTime:"", court:"", person:MEMBERS[0], customPerson:"" };
+    render();
+    await dbInsert("reservations", item);
+  });
+}
+
+// Init
+loadData().then(() => render()).catch(e => {
+  document.getElementById("app").innerHTML = `
+    <div class="center-screen">
+      <div class="error-text">⚠️ 연결 실패<br><small>${e.message}</small></div>
+      <button class="retry-btn" onclick="location.reload()">다시 시도</button>
+    </div>`;
+});
+</script>
+</body>
+</html>
