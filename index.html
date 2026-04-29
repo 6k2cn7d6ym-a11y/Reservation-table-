@@ -142,23 +142,18 @@ function getWeekLabel(start) {
   return `${s.getMonth()+1}/${s.getDate()} - ${e.getMonth()+1}/${e.getDate()}`;
 }
 
-// Supabase helpers
+// Supabase helpers (fetch-based)
 async function dbGet(table, query="") {
-  const { data, error } = await client.from(table).select("*");
-  if (error) throw error;
-  return data;
+  return await sbGet(table, query);
 }
 async function dbInsert(table, row) {
-  const { error } = await client.from(table).insert(row);
-  if (error) throw error;
+  await sbPost(table, row);
 }
 async function dbUpdate(table, id, fields) {
-  const { error } = await client.from(table).update(fields).eq("id", id);
-  if (error) throw error;
+  await sbPatch(table, "id=eq."+id, fields);
 }
 async function dbDelete(table, col, val) {
-  const { error } = await client.from(table).delete().eq(col, val);
-  if (error) throw error;
+  await sbDelete(table, col+"=eq."+val);
 }
 
 async function loadData() {
